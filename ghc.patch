@@ -1,0 +1,68 @@
+diff -ur ghc-7.10.3/configure ghc-7.10.3.patched/configure
+--- ghc-7.10.3/configure	2015-12-01 00:39:05.000000000 +0100
++++ ghc-7.10.3.patched/configure	2016-06-01 22:00:59.882469095 +0200
+@@ -8861,8 +8861,8 @@
+         SettingsLdCommand="$LdCmd"
+         SettingsArCommand="$ArCmd"
+         SettingsPerlCommand="$PerlCmd"
+-        SettingsDllWrapCommand="/bin/false"
+-        SettingsWindresCommand="/bin/false"
++        SettingsDllWrapCommand="${target}-dllwrap"
++        SettingsWindresCommand="${target}-windres"
+         SettingsLibtoolCommand="libtool"
+         SettingsReadElfCommand="$ReadElfCmd"
+         SettingsTouchCommand='touch'
++++ ghc-7.10.3.patched/libraries/haskeline/System/Console/Haskeline/Backend/Win32.hsc	2016-06-01 21:20:02.938684273 +0200
+@@ -167,10 +167,9 @@
+ data Coord = Coord {coordX, coordY :: Int}
+                 deriving Show
+                 
+-#let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__); }, y__)
+ instance Storable Coord where
+     sizeOf _ = (#size COORD)
+-    alignment _ = (#alignment COORD)
++    alignment _ = alignment (undefined :: Int)
+     peek p = do
+         x :: CShort <- (#peek COORD, X) p
+         y :: CShort <- (#peek COORD, Y) p
+diff -ur ghc-7.10.3/mk/config.mk.in ghc-7.10.3.patched/mk/config.mk.in
+--- ghc-7.10.3/mk/config.mk.in	2015-10-19 17:59:58.000000000 +0200
++++ ghc-7.10.3.patched/mk/config.mk.in	2016-06-01 21:24:04.180130244 +0200
+@@ -580,22 +580,13 @@
+ SRC_HSC2HS_OPTS_STAGE0 += --cflag=-D$(HostArch_CPP)_HOST_ARCH=1 --cflag=-D$(HostOS_CPP)_HOST_OS=1
+ SRC_HSC2HS_OPTS_STAGE1 += --cflag=-D$(TargetArch_CPP)_HOST_ARCH=1 --cflag=-D$(TargetOS_CPP)_HOST_OS=1
+ SRC_HSC2HS_OPTS_STAGE2 += --cflag=-D$(TargetArch_CPP)_HOST_ARCH=1 --cflag=-D$(TargetOS_CPP)_HOST_OS=1
+ 
+-ifeq "$(TARGETPLATFORM)" "i386-unknown-mingw32"
+-WINDRES = $(INPLACE_MINGW)/bin/windres
+-else ifeq "$(TARGETPLATFORM)" "x86_64-unknown-mingw32"
+-WINDRES = $(INPLACE_MINGW)/bin/windres
+-endif
++WINDRES = $(TARGETPLATFORM)-windres
+ 
+ #-----------------------------------------------------------------------------
+ # Mingwex Library
+ #
+-HaveLibMingwEx	= @HaveLibMingwEx@
+-ifeq "$(TARGETPLATFORM)" "i386-unknown-mingw32"
+-DLLTOOL			= inplace/mingw/bin/dlltool.exe
+-else ifeq "$(TARGETPLATFORM)" "x86_64-unknown-mingw32"
+-DLLTOOL			= inplace/mingw/bin/dlltool.exe
+-endif
++DLLTOOL			= $(TARGETPLATFORM)-dlltool
+ 
+ #-----------------------------------------------------------------------------
+ # Other standard (ha!) Unix utilities
+@@ -690,11 +677,7 @@
+ XARGS_OPTS = -s 20000
+ endif
+ 
+-ifeq "$(TARGETPLATFORM)" "x86_64-unknown-mingw32"
+-STRIP_CMD      = $(TOP)/inplace/mingw/bin/strip.exe
+-else
+-STRIP_CMD      = strip
+-endif
++STRIP_CMD      = $(TARGETPLATFORM)-strip
+ PATCH_CMD      = @PatchCmd@
+ TAR_CMD        = @TarCmd@
+ BZIP2_CMD      = bzip2

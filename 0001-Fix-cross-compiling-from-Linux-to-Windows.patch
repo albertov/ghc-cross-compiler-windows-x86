@@ -1,0 +1,53 @@
+From b00c0cd354f0a02bc2924e2c33f5e7cb153b8dfd Mon Sep 17 00:00:00 2001
+From: Erik de Castro Lopo <erikd@qti.qualcomm.com>
+Date: Sun, 8 Feb 2015 12:59:54 +1100
+Subject: [PATCH] Fix cross-compiling from Linux to Windows.
+
+Hsc2hs needs to run on the build system rather that on the target system
+so that:
+
+    #if defined(mingw32_HOST_OS)
+
+needs to change to:
+
+    #if defined(mingw32_HOST_OS) && HostPlatform_TYPE == mingw32_HOST_OS
+
+fixup
+---
+ Main.hs | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/Main.hs b/Main.hs
+index afa192e..15810bf 100644
+--- a/Main.hs
++++ b/Main.hs
+@@ -17,7 +17,7 @@ import Control.Monad            ( liftM, forM_ )
+ import Data.List                ( isSuffixOf )
+ import System.Console.GetOpt
+ 
+-#if defined(mingw32_HOST_OS)
++#if defined(mingw32_HOST_OS) && HostPlatform_TYPE == mingw32_HOST_OS
+ import Foreign
+ import Foreign.C.String
+ #endif
+@@ -40,7 +40,7 @@ import DirectCodegen
+ import Flags
+ import HSCParser
+ 
+-#ifdef mingw32_HOST_OS
++#if defined(mingw32_HOST_OS) && HostPlatform_TYPE == mingw32_HOST_OS
+ # if defined(i386_HOST_ARCH)
+ #  define WINDOWS_CCONV stdcall
+ # elif defined(x86_64_HOST_ARCH)
+@@ -221,7 +221,7 @@ getExecDir cmd =
+           removeCmdSuffix = return . Just . initN (length cmd) . normalise
+ 
+ getExecPath :: IO (Maybe String)
+-#if defined(mingw32_HOST_OS)
++#if defined(mingw32_HOST_OS) && HostPlatform_TYPE == mingw32_HOST_OS
+ getExecPath = try_size 2048 -- plenty, PATH_MAX is 512 under Win32.
+   where
+     try_size size = allocaArray (fromIntegral size) $ \buf -> do
+-- 
+2.1.4
+
