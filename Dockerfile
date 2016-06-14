@@ -1,12 +1,15 @@
 FROM thewtex/cross-compiler-windows-x86
 
-ENV HOST_TRIPLE i686-w64-mingw32
+ENV HOST_TRIPLE=i686-w64-mingw32 \
+    WINDRES=/usr/src/mxe/usr/bin/${CROSS_TRIPLE}-windres
+
 
 RUN for src in /usr/src/mxe/usr/bin/${CROSS_TRIPLE}-*; do \
      ln -s ${src} $(src=${src} bash -c 'echo ${src/${CROSS_TRIPLE}/${HOST_TRIPLE}}'); \
     done \
-  && ln -s /usr/src/mxe/usr/bin/${CROSS_TRIPLE}-windres \
-           /usr/src/mxe/usr/bin/windres
+  && echo '#!/bin/bash' >> /usr/local/bin/windres \
+  && echo 'exec $WINDRES -I/usr/src/mxe/usr/i686-w64-mingw32.static/include "$@"' >> /usr/local/bin/windres \
+  && chmod +x /usr/local/bin/windres
 
 WORKDIR /tmp
 RUN : Download and unpack native GHC from binary distribution \
