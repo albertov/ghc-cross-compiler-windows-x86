@@ -1,4 +1,4 @@
-FROM thewtex/cross-compiler-windows-x86
+FROM avalverde/cross-compiler-windows-x86
 
 ENV HOST_TRIPLE=i686-w64-mingw32 \
     WINDRES=/usr/src/mxe/usr/bin/${CROSS_TRIPLE}-windres
