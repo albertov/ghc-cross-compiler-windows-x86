@@ -1,23 +1,51 @@
-diff -ur ghc-7.10.3/configure ghc-7.10.3.patched/configure
---- ghc-7.10.3/configure	2015-12-01 00:39:05.000000000 +0100
-+++ ghc-7.10.3.patched/configure	2016-06-01 22:00:59.882469095 +0200
-@@ -8861,8 +8861,8 @@
+diff -ur ghc-8.0.1-orig/configure ghc-8.0.1/configure
+--- ghc-8.0.1-orig/configure	2016-05-17 18:36:51.000000000 +0200
++++ ghc-8.0.1/configure	2016-07-02 22:50:33.133319350 +0200
+@@ -4095,7 +4095,7 @@
+ $as_echo "$as_me: WARNING: I'm assuming you wanted to build for i386-unknown-mingw32" >&2;}
+         exit 1
+         ;;
+-    *-unknown-mingw32)
++    *-mingw32)
+         windows=YES
+         exeext_target='.exe'
+         soext_target='.dll'
+@@ -9318,8 +9318,14 @@
          SettingsLdCommand="$LdCmd"
          SettingsArCommand="$ArCmd"
          SettingsPerlCommand="$PerlCmd"
 -        SettingsDllWrapCommand="/bin/false"
 -        SettingsWindresCommand="/bin/false"
-+        SettingsDllWrapCommand="${target}-dllwrap"
-+        SettingsWindresCommand="${target}-windres"
++	if test "$CrossCompiling" = YES && test "$TargetOS" = mingw32
++        then
++          SettingsDllWrapCommand="${CrossCompilePrefix}dllwrap"
++          SettingsWindresCommand="${CrossCompilePrefix}windres"
++        else
++          SettingsDllWrapCommand="/bin/false"
++          SettingsWindresCommand="/bin/false"
++        fi
          SettingsLibtoolCommand="libtool"
-         SettingsReadElfCommand="$ReadElfCmd"
          SettingsTouchCommand='touch'
-+++ ghc-7.10.3.patched/libraries/haskeline/System/Console/Haskeline/Backend/Win32.hsc	2016-06-01 21:20:02.938684273 +0200
-@@ -167,10 +167,9 @@
+     fi
+@@ -12516,7 +12522,7 @@
+ 
+ # Hack!: nlist() under Digital UNIX insist on there being an _,
+ # but symbol table listings shows none. What is going on here?!?
+-case $HostPlatform in
++case $TargetPlatform in
+ *openbsd*) # x86 openbsd is ELF from 3.4 >, meaning no leading uscore
+   case $build in
+     i386-*2\.[0-9] | i386-*3\.[0-3] ) fptools_cv_leading_underscore=yes ;;
+diff -ur ghc-8.0.1-orig/libraries/haskeline/System/Console/Haskeline/Backend/Win32.hsc ghc-8.0.1/libraries/haskeline/System/Console/Haskeline/Backend/Win32.hsc
+--- ghc-8.0.1-orig/libraries/haskeline/System/Console/Haskeline/Backend/Win32.hsc	2016-01-06 19:49:15.000000000 +0100
++++ ghc-8.0.1/libraries/haskeline/System/Console/Haskeline/Backend/Win32.hsc	2016-07-02 18:20:38.709821964 +0200
+@@ -167,12 +167,9 @@
  data Coord = Coord {coordX, coordY :: Int}
                  deriving Show
-                 
+ 
+-#if __GLASGOW_HASKELL__ < 711
 -#let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__); }, y__)
+-#endif
  instance Storable Coord where
      sizeOf _ = (#size COORD)
 -    alignment _ = (#alignment COORD)
@@ -25,10 +53,30 @@ diff -ur ghc-7.10.3/configure ghc-7.10.3.patched/configure
      peek p = do
          x :: CShort <- (#peek COORD, X) p
          y :: CShort <- (#peek COORD, Y) p
-diff -ur ghc-7.10.3/mk/config.mk.in ghc-7.10.3.patched/mk/config.mk.in
---- ghc-7.10.3/mk/config.mk.in	2015-10-19 17:59:58.000000000 +0200
-+++ ghc-7.10.3.patched/mk/config.mk.in	2016-06-01 21:24:04.180130244 +0200
-@@ -580,22 +580,13 @@
+diff -ur ghc-8.0.1-orig/mk/config.mk.in ghc-8.0.1/mk/config.mk.in
+--- ghc-8.0.1-orig/mk/config.mk.in	2016-05-16 19:08:53.000000000 +0200
++++ ghc-8.0.1/mk/config.mk.in	2016-07-02 18:20:38.709821964 +0200
+@@ -631,12 +631,6 @@
+ CONF_CC_OPTS += -G0
+ endif
+ 
+-# The .hsc files aren't currently safe for cross-compilation on Windows:
+-#     libraries\haskeline\.\System\Console\Haskeline\Backend\Win32.hsc:160
+-#     directive "let" is not safe for cross-compilation
+-ifneq "$(Windows_Host)" "YES"
+-SRC_HSC2HS_OPTS += --cross-safe
+-endif
+ SRC_HSC2HS_OPTS += $(foreach d,$(GMP_INCLUDE_DIRS),-I$(d))
+ 
+ define set_stage_HSC2HS_OPTS
+@@ -648,29 +642,16 @@
+ $(eval $(call set_stage_HSC2HS_OPTS,0))
+ $(eval $(call set_stage_HSC2HS_OPTS,1))
+ $(eval $(call set_stage_HSC2HS_OPTS,2))
+-ifeq "$(CrossCompiling)" "YES"
+-SRC_HSC2HS_OPTS_STAGE1 += --cross-compile
+-SRC_HSC2HS_OPTS_STAGE2 += --cross-compile
+-endif
  SRC_HSC2HS_OPTS_STAGE0 += --cflag=-D$(HostArch_CPP)_HOST_ARCH=1 --cflag=-D$(HostOS_CPP)_HOST_OS=1
  SRC_HSC2HS_OPTS_STAGE1 += --cflag=-D$(TargetArch_CPP)_HOST_ARCH=1 --cflag=-D$(TargetOS_CPP)_HOST_OS=1
  SRC_HSC2HS_OPTS_STAGE2 += --cflag=-D$(TargetArch_CPP)_HOST_ARCH=1 --cflag=-D$(TargetOS_CPP)_HOST_OS=1
@@ -53,16 +101,89 @@ diff -ur ghc-7.10.3/mk/config.mk.in ghc-7.10.3.patched/mk/config.mk.in
  
  #-----------------------------------------------------------------------------
  # Other standard (ha!) Unix utilities
-@@ -690,11 +677,7 @@
- XARGS_OPTS = -s 20000
+diff -ur ghc-8.0.1-orig/rts/ghc.mk ghc-8.0.1/rts/ghc.mk
+--- ghc-8.0.1-orig/rts/ghc.mk	2016-05-16 19:08:53.000000000 +0200
++++ ghc-8.0.1/rts/ghc.mk	2016-07-02 19:57:00.112598067 +0200
+@@ -34,12 +34,13 @@
+ ALL_RTS_LIBS = $(foreach way,$(rts_WAYS),rts/dist/build/libHSrts$($(way)_libsuf))
+ $(eval $(call all-target,rts,$(ALL_RTS_LIBS)))
+ 
++
+ # -----------------------------------------------------------------------------
+ # Defining the sources
+ 
+ ALL_DIRS = hooks sm eventlog
+ 
+-ifeq "$(HostOS_CPP)" "mingw32"
++ifneq ($(filter mingw32,$(HostOS_CPP) $(TargetOS_CPP)),)
+ ALL_DIRS += win32
+ else
+ ALL_DIRS += posix
+@@ -96,7 +97,7 @@
+ # 	These are made from rts/win32/libHS*.def which contain lists of
+ # 	all the symbols in those libraries used by the RTS.
+ #
+-ifeq "$(HostOS_CPP)" "mingw32" 
++ifneq ($(filter mingw32,$(HostOS_CPP) $(TargetOS_CPP)),)
+ 
+ ALL_RTS_DEF_LIBNAMES 	= base ghc-prim
+ ALL_RTS_DEF_LIBS	= \
+@@ -120,7 +121,7 @@
+ 
+ ifneq "$(BINDIST)" "YES"
+ ifneq "$(UseSystemLibFFI)" "YES"
+-ifeq "$(HostOS_CPP)" "mingw32" 
++ifneq ($(filter mingw32,$(HostOS_CPP) $(TargetOS_CPP)),)
+ rts/dist/build/$(LIBFFI_DLL): libffi/build/inst/bin/$(LIBFFI_DLL)
+ 	cp $< $@
+ else
+@@ -151,7 +152,7 @@
  endif
  
--ifeq "$(TARGETPLATFORM)" "x86_64-unknown-mingw32"
--STRIP_CMD      = $(TOP)/inplace/mingw/bin/strip.exe
--else
--STRIP_CMD      = strip
--endif
-+STRIP_CMD      = $(TARGETPLATFORM)-strip
- PATCH_CMD      = @PatchCmd@
- TAR_CMD        = @TarCmd@
- BZIP2_CMD      = bzip2
+ ifneq "$$(findstring dyn, $1)" ""
+-ifeq "$$(HostOS_CPP)" "mingw32" 
++ifneq ($(filter mingw32,$(HostOS_CPP) $(TargetOS_CPP)),)
+ rts_dist_$1_CC_OPTS += -DCOMPILING_WINDOWS_DLL
+ endif
+ rts_dist_$1_CC_OPTS += -DDYNAMIC
+@@ -192,7 +193,7 @@
+ # If we're compiling on windows, enforce that we only support XP+
+ # Adding this here means it doesn't have to be done in individual .c files
+ # and also centralizes the versioning.
+-ifeq "$$(TargetOS_CPP)" "mingw32"
++ifneq ($(filter mingw32,$(HostOS_CPP) $(TargetOS_CPP)),)
+ rts_dist_$1_CC_OPTS += -DWINVER=$(rts_WINVER)
+ endif
+ 
+@@ -204,7 +205,7 @@
+ 
+ # Making a shared library for the RTS.
+ ifneq "$$(findstring dyn, $1)" ""
+-ifeq "$$(HostOS_CPP)" "mingw32" 
++ifneq ($(filter mingw32,$(HostOS_CPP) $(TargetOS_CPP)),)
+ $$(rts_$1_LIB) : $$(rts_$1_OBJS) $$(ALL_RTS_DEF_LIBS) rts/dist/libs.depend rts/dist/build/$$(LIBFFI_DLL)
+ 	"$$(RM)" $$(RM_OPTS) $$@
+ 	"$$(rts_dist_HC)" -this-unit-id rts -shared -dynamic -dynload deploy \
+@@ -331,7 +332,7 @@
+ endif
+ 
+ # Set Windows version
+-ifeq "$$(TargetOS_CPP)" "mingw32"
++ifneq ($(filter mingw32,$(HostOS_CPP) $(TargetOS_CPP)),)
+ rts_CC_OPTS += -DWINVER=$(rts_WINVER)
+ endif
+ 
+diff -ur ghc-8.0.1-orig/utils/hsc2hs/DirectCodegen.hs ghc-8.0.1/utils/hsc2hs/DirectCodegen.hs
+--- ghc-8.0.1-orig/utils/hsc2hs/DirectCodegen.hs	2015-12-28 15:44:07.000000000 +0100
++++ ghc-8.0.1/utils/hsc2hs/DirectCodegen.hs	2016-07-02 18:44:03.908633863 +0200
+@@ -35,9 +35,7 @@
+         outHName     = outDir++outHFile
+         outCName     = outDir++outBase++"_hsc.c"
+ 
+-    let execProgName
+-            | null outDir = normalise ("./" ++ progName)
+-            | otherwise   = progName
++    let execProgName = "./" ++ progName
+ 
+     let specials = [(pos, key, arg) | Special pos key arg <- toks]
+ 
