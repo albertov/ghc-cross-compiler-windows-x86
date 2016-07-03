@@ -1,8 +1,9 @@
 FROM avalverde/cross-compiler-windows-x86
 
 ENV HOST_TRIPLE=i686-w64-mingw32 \
-    WINDRES=/usr/src/mxe/usr/bin/${CROSS_TRIPLE}-windres
-
+    WINDRES=/usr/src/mxe/usr/bin/${CROSS_TRIPLE}-windres \
+    GHC_VERSION=8.0.1 \
+    STACK_RESOLVER=nightly-2016-07-01
 
 RUN for src in /usr/src/mxe/usr/bin/${CROSS_TRIPLE}-*; do \
      ln -s ${src} $(src=${src} bash -c 'echo ${src/${CROSS_TRIPLE}/${HOST_TRIPLE}}'); \
@@ -13,9 +14,9 @@ RUN for src in /usr/src/mxe/usr/bin/${CROSS_TRIPLE}-*; do \
 
 WORKDIR /tmp
 RUN : Download and unpack native GHC from binary distribution \
-  && wget http://downloads.haskell.org/~ghc/7.10.3/ghc-7.10.3b-x86_64-deb8-linux.tar.xz \
-  && tar xvfJ ghc-7.10.3b-x86_64-deb8-linux.tar.xz \
-  && cd /tmp/ghc-7.10.3 \
+  && wget https://downloads.haskell.org/~ghc/${GHC_VERSION}/ghc-${GHC_VERSION}-x86_64-deb8-linux.tar.xz \
+  && tar xvfJ ghc-${GHC_VERSION}-x86_64-deb8-linux.tar.xz \
+  && cd /tmp/ghc-${GHC_VERSION} \
   && : Install native GHC from binary distribution \
   && ./configure --prefix=/usr/local \
   && make install \
@@ -27,11 +28,10 @@ RUN : Install native stack and build tools \
   && apt-get install -y curl libgmp-dev \
   && curl -L https://www.stackage.org/stack/linux-x86_64 \
    | tar xz --wildcards --strip-components=1 -C /usr/local/bin '*/stack' \
-  && stack install --resolver=lts-6.5 happy alex
+  && stack install --resolver=${STACK_RESOLVER} happy alex
 
 
 # build cross-compiler
-ENV GHC_VERSION 8.0.1
 
 RUN ln -s /usr/src/mxe/usr/${CROSS_TRIPLE}/include/shlobj.h \
          /usr/src/mxe/usr/${CROSS_TRIPLE}/include/Shlobj.h
