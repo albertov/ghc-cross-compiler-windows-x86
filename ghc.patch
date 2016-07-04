@@ -49,7 +49,7 @@ diff -ur ghc-8.0.1-orig/configure ghc-8.0.1/configure
      i386-*2\.[0-9] | i386-*3\.[0-3] ) fptools_cv_leading_underscore=yes ;;
 diff -ur ghc-8.0.1-orig/ghc.mk ghc-8.0.1/ghc.mk
 --- ghc-8.0.1-orig/ghc.mk	2016-05-16 19:08:53.000000000 +0200
-+++ ghc-8.0.1/ghc.mk	2016-07-03 02:00:21.463508139 +0200
++++ ghc-8.0.1/ghc.mk	2016-07-03 18:29:20.093899638 +0200
 @@ -437,6 +437,10 @@
  endif
  endif
