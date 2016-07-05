@@ -1,0 +1,296 @@
+From c6b2983e9f7c07a7116d87d8e7d0cef821e28a85 Mon Sep 17 00:00:00 2001
+From: Alberto Valverde <alberto@toscat.net>
+Date: Tue, 5 Jul 2016 16:39:55 +0200
+Subject: [PATCH 5/6] Modified ghc-iserv and ghc to comunicate via iserv's
+ stdin/out when using an external interpreter.
+
+This allows ghc-iserv.exe to be launched using wine enabling
+TemplateHaskell when cross-compiling to Windows.
+---
+ compiler/ghci/GHCi.hs             | 46 ++++++++------------------------------
+ iserv/iserv-bin.cabal             |  1 -
+ iserv/src/GHCi/Utils.hsc          | 25 ---------------------
+ iserv/src/Main.hs                 | 47 ++++++++++++++++++++++++---------------
+ libraries/ghci/GHCi/BreakArray.hs |  5 +++--
+ libraries/ghci/GHCi/Message.hs    |  4 ++--
+ libraries/ghci/GHCi/Run.hs        |  3 ++-
+ 7 files changed, 45 insertions(+), 86 deletions(-)
+ delete mode 100644 iserv/src/GHCi/Utils.hsc
+
+diff --git a/compiler/ghci/GHCi.hs b/compiler/ghci/GHCi.hs
+index 7097e66..4efa8a9 100644
+--- a/compiler/ghci/GHCi.hs
++++ b/compiler/ghci/GHCi.hs
+@@ -74,12 +74,7 @@ import GHC.Stack.CCS (CostCentre,CostCentreStack)
+ import System.Exit
+ import Data.Maybe
+ import GHC.IO.Handle.Types (Handle)
+-#ifdef mingw32_HOST_OS
+-import Foreign.C
+-import GHC.IO.Handle.FD (fdToHandle)
+-#else
+-import System.Posix as Posix
+-#endif
++import System.IO (BufferMode(NoBuffering), hSetBuffering, hSetBinaryMode)
+ import System.Process
+ import GHC.Conc (getNumProcessors, pseq, par)
+ 
+@@ -468,39 +463,16 @@ stopIServ HscEnv{..} =
+        else iservCall iserv Shutdown
+ 
+ runWithPipes :: FilePath -> [String] -> IO (ProcessHandle, Handle, Handle)
+-#ifdef mingw32_HOST_OS
+-foreign import ccall "io.h _close"
+-   c__close :: CInt -> IO CInt
+-
+-foreign import ccall unsafe "io.h _get_osfhandle"
+-   _get_osfhandle :: CInt -> IO CInt
+-
+-runWithPipes prog opts = do
+-    (rfd1, wfd1) <- createPipeFd -- we read on rfd1
+-    (rfd2, wfd2) <- createPipeFd -- we write on wfd2
+-    wh_client    <- _get_osfhandle wfd1
+-    rh_client    <- _get_osfhandle rfd2
+-    let args = show wh_client : show rh_client : opts
+-    (_, _, _, ph) <- createProcess (proc prog args)
+-    rh <- mkHandle rfd1
+-    wh <- mkHandle wfd2
+-    return (ph, rh, wh)
+-      where mkHandle :: CInt -> IO Handle
+-            mkHandle fd = (fdToHandle fd) `onException` (c__close fd)
+-#else
+ runWithPipes prog opts = do
+-    (rfd1, wfd1) <- Posix.createPipe -- we read on rfd1
+-    (rfd2, wfd2) <- Posix.createPipe -- we write on wfd2
+-    setFdOption rfd1 CloseOnExec True
+-    setFdOption wfd2 CloseOnExec True
+-    let args = show wfd1 : show rfd2 : opts
+-    (_, _, _, ph) <- createProcess (proc prog args)
+-    closeFd wfd1
+-    closeFd rfd2
+-    rh <- fdToHandle rfd1
+-    wh <- fdToHandle wfd2
++    (Just wh, Just rh, _, ph) <- createProcess (proc prog [])
++      { std_in = CreatePipe
++      , std_out = CreatePipe
++      }
++    hSetBuffering wh NoBuffering
++    hSetBinaryMode wh True
++    hSetBuffering rh NoBuffering
++    hSetBinaryMode rh True
+     return (ph, rh, wh)
+-#endif
+ 
+ -- -----------------------------------------------------------------------------
+ {- Note [External GHCi pointers]
+diff --git a/iserv/iserv-bin.cabal b/iserv/iserv-bin.cabal
+index e0bc843..b6020bd 100644
+--- a/iserv/iserv-bin.cabal
++++ b/iserv/iserv-bin.cabal
+@@ -17,7 +17,6 @@ Executable iserv
+     Main-Is: Main.hs
+     C-Sources: cbits/iservmain.c
+     Hs-Source-Dirs: src
+-    Other-Modules: GHCi.Utils
+     Build-Depends: array      >= 0.5 && < 0.6,
+                    base       >= 4   && < 5,
+                    binary     >= 0.7 && < 0.9,
+diff --git a/iserv/src/GHCi/Utils.hsc b/iserv/src/GHCi/Utils.hsc
+deleted file mode 100644
+index b90cfac..0000000
+--- a/iserv/src/GHCi/Utils.hsc
++++ /dev/null
+@@ -1,25 +0,0 @@
+-{-# LANGUAGE CPP #-}
+-module GHCi.Utils
+-    ( getGhcHandle
+-    ) where
+-
+-import Foreign.C
+-import GHC.IO.Handle (Handle())
+-#ifdef mingw32_HOST_OS
+-import GHC.IO.Handle.FD (fdToHandle)
+-#else
+-import System.Posix
+-#endif
+-
+-#include <fcntl.h>     /* for _O_BINARY */
+-
+--- | Gets a GHC Handle File description from the given OS Handle or POSIX fd.
+-getGhcHandle :: CInt -> IO Handle
+-#ifdef mingw32_HOST_OS
+-getGhcHandle handle = _open_osfhandle handle (#const _O_BINARY) >>= fdToHandle
+-
+-foreign import ccall "io.h _open_osfhandle" _open_osfhandle ::
+-    CInt -> CInt -> IO CInt
+-#else
+-getGhcHandle fd     = fdToHandle $ Fd fd
+-#endif
+diff --git a/iserv/src/Main.hs b/iserv/src/Main.hs
+index 46ae82b..20bd876 100644
+--- a/iserv/src/Main.hs
++++ b/iserv/src/Main.hs
+@@ -1,11 +1,10 @@
+-{-# LANGUAGE RecordWildCards, GADTs, ScopedTypeVariables, RankNTypes #-}
++{-# LANGUAGE RecordWildCards, GADTs, ScopedTypeVariables, RankNTypes, CPP #-}
+ module Main (main) where
+ 
+ import GHCi.Run
+ import GHCi.TH
+ import GHCi.Message
+ import GHCi.Signals
+-import GHCi.Utils
+ 
+ import Control.DeepSeq
+ import Control.Exception
+@@ -14,24 +13,35 @@ import Data.Binary
+ import Data.IORef
+ import System.Environment
+ import System.Exit
+-import Text.Printf
++import System.IO
+ 
+ main :: IO ()
+ main = do
+-  (arg0:arg1:rest) <- getArgs
+-  let wfd1 = read arg0; rfd2 = read arg1
+-  verbose <- case rest of
++  args <- getArgs
++  verbose <- case args of
+     ["-v"] -> return True
+     []     -> return False
+-    _      -> die "iserv: syntax: iserv <write-fd> <read-fd> [-v]"
+-  when verbose $ do
+-    printf "GHC iserv starting (in: %d; out: %d)\n"
+-      (fromIntegral rfd2 :: Int) (fromIntegral wfd1 :: Int)
+-  inh  <- getGhcHandle rfd2
+-  outh <- getGhcHandle wfd1
++    _      -> die "iserv: syntax: iserv [-v]"
++  when verbose $ hPutStrLn stderr "GHC iserv starting"
+   installSignalHandlers
++#if defined(mingw32_HOST_OS)
++  -- When cross-compiling (at least) we need to preload these DLLs since
++  -- base depends on symbols
++  -- defined in them, namely _CommandLineToArgvW
++  -- Interestingly, running ghc-iserv.exe with "+RTS -Dl" shows that ghc
++  -- sends FindSystemLibrary requests looking for them but for some reason
++  -- never sends LoadDLL requests for them.
++  mapM_ (run . LoadDLL)
++    [ "shell32"   -- for _CommandLineToArgvW
++    , "wsock32"   -- for _recv
++    ]
++#endif
+   lo_ref <- newIORef Nothing
+-  let pipe = Pipe{pipeRead = inh, pipeWrite = outh, pipeLeftovers = lo_ref}
++  hSetBuffering stdin NoBuffering
++  hSetBinaryMode stdin True
++  hSetBuffering stdout NoBuffering
++  hSetBinaryMode stdout True
++  let pipe = Pipe{pipeRead = stdin, pipeWrite = stdout, pipeLeftovers = lo_ref}
+   uninterruptibleMask $ serv verbose pipe
+     -- we cannot allow any async exceptions while communicating, because
+     -- we will lose sync in the protocol, hence uninterruptibleMask.
+@@ -40,9 +50,10 @@ serv :: Bool -> Pipe -> (forall a .IO a -> IO a) -> IO ()
+ serv verbose pipe@Pipe{..} restore = loop
+  where
+   loop = do
++    when verbose $ hPutStrLn stderr ("iserv: waiting for Message")
+     Msg msg <- readPipe pipe getMessage
+     discardCtrlC
+-    when verbose $ putStrLn ("iserv: " ++ show msg)
++    when verbose $ hPutStrLn stderr ("iserv: " ++ show msg)
+     case msg of
+       Shutdown -> return ()
+       RunTH st q ty loc -> wrapRunTH $ runTH pipe st q ty loc
+@@ -51,7 +62,7 @@ serv verbose pipe@Pipe{..} restore = loop
+ 
+   reply :: forall a. (Binary a, Show a) => a -> IO ()
+   reply r = do
+-    when verbose $ putStrLn ("iserv: return: " ++ show r)
++    when verbose $ hPutStrLn stderr ("iserv: return: " ++ show r)
+     writePipe pipe (put r)
+     loop
+ 
+@@ -61,16 +72,16 @@ serv verbose pipe@Pipe{..} restore = loop
+     case r of
+       Left e
+         | Just (GHCiQException _ err) <- fromException e  -> do
+-           when verbose $ putStrLn "iserv: QFail"
++           when verbose $ hPutStrLn stderr "iserv: QFail"
+            writePipe pipe (putMessage (QFail err))
+            loop
+         | otherwise -> do
+-           when verbose $ putStrLn "iserv: QException"
++           when verbose $ hPutStrLn stderr "iserv: QException"
+            str <- showException e
+            writePipe pipe (putMessage (QException str))
+            loop
+       Right a -> do
+-        when verbose $ putStrLn "iserv: QDone"
++        when verbose $ hPutStrLn stderr "iserv: QDone"
+         writePipe pipe (putMessage QDone)
+         reply a
+ 
+diff --git a/libraries/ghci/GHCi/BreakArray.hs b/libraries/ghci/GHCi/BreakArray.hs
+index 311bbd6..0be703c 100644
+--- a/libraries/ghci/GHCi/BreakArray.hs
++++ b/libraries/ghci/GHCi/BreakArray.hs
+@@ -33,6 +33,7 @@ import GHC.Word
+ 
+ import GHC.Exts
+ import GHC.IO ( IO(..) )
++import System.IO (stderr, hPutStr)
+ import System.IO.Unsafe ( unsafeDupablePerformIO )
+ 
+ data BreakArray = BA (MutableByteArray# RealWorld)
+@@ -45,8 +46,8 @@ showBreakArray :: BreakArray -> IO ()
+ showBreakArray array = do
+     forM_ [0 .. (size array - 1)] $ \i -> do
+         val <- readBreakArray array i
+-        putStr $ ' ' : show val
+-    putStr "\n"
++        hPutStr stderr $ ' ' : show val
++    hPutStr stderr "\n"
+ 
+ setBreakOn :: BreakArray -> Int -> IO Bool
+ setBreakOn array index
+diff --git a/libraries/ghci/GHCi/Message.hs b/libraries/ghci/GHCi/Message.hs
+index b8f9fcc..fe9518e 100644
+--- a/libraries/ghci/GHCi/Message.hs
++++ b/libraries/ghci/GHCi/Message.hs
+@@ -464,9 +464,9 @@ getBin h get leftover = go leftover (runGetIncremental get)
+    go (Just leftover) (Partial fun) = do
+      go Nothing (fun (Just leftover))
+    go Nothing (Partial fun) = do
+-     -- putStrLn "before hGetSome"
++     --hPutStrLn stderr "before hGetSome"
+      b <- B.hGetSome h (32*1024)
+-     -- printf "hGetSome: %d\n" (B.length b)
++     --hPutStrLn stderr (printf "hGetSome %d: %s" (B.length b) (show b))
+      if B.null b
+         then return Nothing
+         else go Nothing (fun (Just b))
+diff --git a/libraries/ghci/GHCi/Run.hs b/libraries/ghci/GHCi/Run.hs
+index a2ea4e2..0bbaa34 100644
+--- a/libraries/ghci/GHCi/Run.hs
++++ b/libraries/ghci/GHCi/Run.hs
+@@ -33,6 +33,7 @@ import Foreign
+ import Foreign.C
+ import GHC.Conc.Sync
+ import GHC.IO hiding ( bracket )
++import System.IO (stderr, hPutStrLn)
+ import System.Exit
+ import System.Mem.Weak  ( deRefWeak )
+ import Unsafe.Coerce
+@@ -315,7 +316,7 @@ noBreakStablePtr :: StablePtr BreakpointCallback
+ noBreakStablePtr = unsafePerformIO $ newStablePtr noBreakAction
+ 
+ noBreakAction :: BreakpointCallback
+-noBreakAction _ _ False _ = putStrLn "*** Ignoring breakpoint"
++noBreakAction _ _ False _ = hPutStrLn stderr  "*** Ignoring breakpoint"
+ noBreakAction _ _ True  _ = return () -- exception: just continue
+ 
+ -- Malloc and copy the bytes.  We don't have any way to monitor the
+-- 
+2.7.4
+

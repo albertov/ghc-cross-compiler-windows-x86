@@ -1,0 +1,102 @@
+From ee4d21017120de96bbbd5aeb6a0b79ce3851c773 Mon Sep 17 00:00:00 2001
+From: Alberto Valverde <alberto@toscat.net>
+Date: Mon, 4 Jul 2016 20:24:48 +0200
+Subject: [PATCH 3/6] implemented the option to use an emulator when running
+ hsc2hs when cross-compiling
+
+---
+ configure.ac    | 22 +++++++++++++++++++++-
+ mk/config.mk.in |  8 ++++++++
+ utils/hsc2hs    |  2 +-
+ 3 files changed, 30 insertions(+), 2 deletions(-)
+
+diff --git a/configure.ac b/configure.ac
+index 31401d7..084d14e 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -451,6 +451,15 @@ AC_SUBST(CrossCompiling)
+ AC_SUBST(CrossCompilePrefix)
+ AC_SUBST(TargetPlatformFull)
+ 
++dnl ** Shall we use an emulator when cross-compiling?
++dnl --------------------------------------------------------------
++AC_ARG_WITH([emulator],
++[AC_HELP_STRING([--with-emulator=ARG],
++  [Use ARG as the path to an emulator for hsc2cs to run tests with when cross-compiling  [default=""]])],
++  [CrossCompileEmulator="$withval"])
++AC_SUBST(CrossCompileEmulator)
++
++
+ dnl ** Which gcc to use?
+ dnl --------------------------------------------------------------
+ FIND_GCC([WhatGccIsCalled], [gcc], [gcc])
+@@ -1170,10 +1179,21 @@ else
+     CompilerName="gcc          "
+ fi
+ 
++
+ echo ["\
+    Using $CompilerName       : $WhatGccIsCalled
+       which is version       : $GccVersion
+-   Building a cross compiler : $CrossCompiling
++   Building a cross compiler : $CrossCompiling"]
++
++if test "$CrossCompileEmulator" != ""; then
++  echo ["\
++      using emulator         : $CrossCompileEmulator"]
++else
++  echo ["\
++      without emulator"]
++fi
++
++echo ["\
+    hs-cpp       : $HaskellCPPCmd
+    hs-cpp-flags : $HaskellCPPArgs
+    ld           : $LdCmd
+diff --git a/mk/config.mk.in b/mk/config.mk.in
+index 5a4c9ca..be61b76 100644
+--- a/mk/config.mk.in
++++ b/mk/config.mk.in
+@@ -550,6 +550,7 @@ LD_STAGE3       = $(LD)
+ # Cross-compiling options
+ # See Note [CrossCompiling vs Stage1Only]
+ CrossCompiling        = @CrossCompiling@
++CrossCompileEmulator  = @CrossCompileEmulator@
+ 
+ # Change this to YES if you're building a cross-compiler and don't
+ # want to build stage 2.
+@@ -635,8 +636,10 @@ endif
+ #     libraries\haskeline\.\System\Console\Haskeline\Backend\Win32.hsc:160
+ #     directive "let" is not safe for cross-compilation
+ ifneq "$(Windows_Host)" "YES"
++ifeq "$(CrossCompileEmulator)" ""
+ SRC_HSC2HS_OPTS += --cross-safe
+ endif
++endif
+ SRC_HSC2HS_OPTS += $(foreach d,$(GMP_INCLUDE_DIRS),-I$(d))
+ 
+ define set_stage_HSC2HS_OPTS
+@@ -649,8 +652,13 @@ $(eval $(call set_stage_HSC2HS_OPTS,0))
+ $(eval $(call set_stage_HSC2HS_OPTS,1))
+ $(eval $(call set_stage_HSC2HS_OPTS,2))
+ ifeq "$(CrossCompiling)" "YES"
++ifeq "$(CrossCompileEmulator)" ""
+ SRC_HSC2HS_OPTS_STAGE1 += --cross-compile
+ SRC_HSC2HS_OPTS_STAGE2 += --cross-compile
++else
++SRC_HSC2HS_OPTS_STAGE1 += --emulator $(CrossCompileEmulator)
++SRC_HSC2HS_OPTS_STAGE2 += --emulator $(CrossCompileEmulator)
++endif
+ endif
+ SRC_HSC2HS_OPTS_STAGE0 += --cflag=-D$(HostArch_CPP)_HOST_ARCH=1 --cflag=-D$(HostOS_CPP)_HOST_OS=1
+ SRC_HSC2HS_OPTS_STAGE1 += --cflag=-D$(TargetArch_CPP)_HOST_ARCH=1 --cflag=-D$(TargetOS_CPP)_HOST_OS=1
+diff --git a/utils/hsc2hs b/utils/hsc2hs
+index 5119aeb..349dc20 160000
+--- a/utils/hsc2hs
++++ b/utils/hsc2hs
+@@ -1 +1 @@
+-Subproject commit 5119aebacaca75d983b4d7db32a6305b7f8651dd
++Subproject commit 349dc20fa561d0bb23cf85add2e8531046233235
+-- 
+2.7.4
+

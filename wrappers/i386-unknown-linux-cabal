@@ -1,9 +1,11 @@
 #!/bin/sh
+HOST_TRIPLE=i386-unknown-linux
 export COMMON=
 export COMPILE="--with-ghc=${HOST_TRIPLE}-ghc
                 --with-ghc-pkg=${HOST_TRIPLE}-ghc-pkg
                 --with-gcc=${HOST_TRIPLE}-gcc
-                --with-ld=${HOST_TRIPLE}-ld"
+                --with-ld=${HOST_TRIPLE}-ld
+                --with-as=${HOST_TRIPLE}-as
 export CONFIG="--configure-option=--host=${HOST_TRIPLE} --disable-shared"
 case $1 in
     configure|install) OPTIONS="$COMMON $COMPILE $CONFIG" ;;

@@ -1,0 +1,3 @@
+#!/bin/sh
+export PATH=/usr/src/mxe/usr/i386-unknown-linux/bin:${PATH}
+exec stack --resolver ${STACK_RESOLVER} --arch i386 --os linux "$@"

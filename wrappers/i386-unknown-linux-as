@@ -1,0 +1,2 @@
+#!/bin/sh
+exec as -march=i686 "$@"

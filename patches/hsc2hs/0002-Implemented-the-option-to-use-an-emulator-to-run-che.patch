@@ -1,0 +1,131 @@
+From 349dc20fa561d0bb23cf85add2e8531046233235 Mon Sep 17 00:00:00 2001
+From: Alberto Valverde Gonzalez <alberto@toscat.net>
+Date: Mon, 4 Jul 2016 18:19:10 +0000
+Subject: [PATCH 2/2] Implemented the option to use an emulator to run checks
+
+---
+ DirectCodegen.hs | 33 +++++++--------------------------
+ Flags.hs         |  7 +++++++
+ Main.hs          |  5 ++++-
+ 3 files changed, 18 insertions(+), 27 deletions(-)
+
+diff --git a/DirectCodegen.hs b/DirectCodegen.hs
+index 19022aa..3f84a38 100644
+--- a/DirectCodegen.hs
++++ b/DirectCodegen.hs
+@@ -21,7 +21,6 @@ outputDirect :: Config -> FilePath -> FilePath -> FilePath -> String -> [Token]
+ outputDirect config outName outDir outBase name toks = do
+ 
+     let beVerbose    = cVerbose config
+-        doCross      = cCrossCompile config
+         flags        = cFlags config
+         cProgName    = outDir++outBase++"_hsc_make.c"
+         oProgName    = outDir++outBase++"_hsc_make.o"
+@@ -85,8 +84,13 @@ outputDirect config outName outDir outBase name toks = do
+         )
+       possiblyRemove oProgName $ do
+ 
+-        runTestProgram ("running " ++ execProgName) beVerbose doCross
+-          execProgName [] outName
++        case cmEmulator config of
++          Just emu -> rawSystemWithStdOutL
++                      ("running " ++ execProgName ++ " with " ++ emu)
++                      beVerbose emu [execProgName] outName
++          Nothing -> rawSystemWithStdOutL
++                      ("running " ++ execProgName)
++                      beVerbose execProgName [] outName
+         possiblyRemove progName $ do
+ 
+           when needsH $ writeBinaryFile outHName $
+@@ -106,26 +110,3 @@ outputDirect config outName outDir outBase name toks = do
+             concatMap outTokenC specials
+             -- NB. outHFile not outHName; works better when processed
+             -- by gcc or mkdependC.
+-
+-linuxBuild :: Bool
+-linuxBuild =
+-#if defined(linux_BUILD_OS)
+-  True
+-#else
+-  False
+-#endif
+-
+-windowsHost :: Bool
+-windowsHost =
+-#if defined(mingw32_HOST_OS) || defined(__CYGWIN32__)
+-  True
+-#else
+-  False
+-#endif
+-
+-
+-runTestProgram msg verbose doCross execProgName args outName
+-  | not doCross, linuxBuild, windowsHost =
+-      rawSystemWithStdOutL msg verbose "wine" (execProgName:args) outName
+-  | otherwise =
+-    rawSystemWithStdOutL msg verbose execProgName args outName
+diff --git a/Flags.hs b/Flags.hs
+index 20758fa..31ea4f8 100644
+--- a/Flags.hs
++++ b/Flags.hs
+@@ -15,6 +15,7 @@ data ConfigM m = Config {
+                      cmTemplate :: m FilePath,
+                      cmCompiler :: m FilePath,
+                      cmLinker   :: m FilePath,
++                     cmEmulator :: Maybe FilePath,
+                      cKeepFiles :: Bool,
+                      cNoCompile :: Bool,
+                      cCrossCompile :: Bool,
+@@ -37,6 +38,7 @@ emptyMode = UseConfig $ Config {
+                             cmTemplate    = Nothing,
+                             cmCompiler    = Nothing,
+                             cmLinker      = Nothing,
++                            cmEmulator    = Nothing,
+                             cKeepFiles    = False,
+                             cNoCompile    = False,
+                             cCrossCompile = False,
+@@ -63,6 +65,8 @@ options = [
+         "C compiler to use",
+     Option ['l'] ["ld"]         (ReqArg (withConfig . setLinker)     "PROG")
+         "linker to use",
++    Option ['e'] ["emulator"]   (ReqArg (withConfig . setEmulator)   "PROG")
++        "Emulator to run tests on (implies cross-compile = False)",
+     Option ['C'] ["cflag"]      (ReqArg (addFlag . CompFlag)   "FLAG")
+         "flag to pass to the C compiler",
+     Option ['I'] []             (ReqArg (addFlag . CompFlag . ("-I"++)) "DIR")
+@@ -111,6 +115,9 @@ setCompiler fp c = c { cmCompiler = Just fp }
+ setLinker :: FilePath -> ConfigM Maybe -> ConfigM Maybe
+ setLinker fp c = c { cmLinker = Just fp }
+ 
++setEmulator :: FilePath -> ConfigM Maybe -> ConfigM Maybe
++setEmulator fp c = c { cmEmulator = Just fp }
++
+ setKeepFiles :: Bool -> ConfigM Maybe -> ConfigM Maybe
+ setKeepFiles b c = c { cKeepFiles = b }
+ 
+diff --git a/Main.hs b/Main.hs
+index 40e52dc..1d2d41e 100644
+--- a/Main.hs
++++ b/Main.hs
+@@ -94,6 +94,7 @@ processFiles configM files usage = do
+                      cmTemplate    = Id template,
+                      cmCompiler    = Id compiler,
+                      cmLinker      = Id linker,
++                     cmEmulator    = cmEmulator configM,
+                      cKeepFiles    = cKeepFiles configM,
+                      cNoCompile    = cNoCompile configM,
+                      cCrossCompile = cCrossCompile configM,
+@@ -102,7 +103,9 @@ processFiles configM files usage = do
+                      cFlags        = cFlags configM ++ extraFlags
+                  }
+ 
+-    let outputter = if cCrossCompile config then outputCross else outputDirect
++    let outputter = case (cCrossCompile config, cmEmulator config) of
++                      (True,Nothing) -> outputCross
++                      _              -> outputDirect
+ 
+     forM_ files (\name -> do
+         (outName, outDir, outBase) <- case [f | Output f <- cFlags config] of
+-- 
+2.7.4
+

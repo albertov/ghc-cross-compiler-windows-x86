@@ -1,4 +1,7 @@
+GhcDebugged = NO
 Stage1Only = YES
+Stage1TH = YES
+SplitObjs = YES
 DYNAMIC_GHC_PROGRAMS = NO
 SRC_HC_OPTS     = -O -H64m
 GhcStage1HcOpts = -O2 -fasm

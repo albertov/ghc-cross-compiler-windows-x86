@@ -1,0 +1,47 @@
+From 51f58bcc6f76d61a5f4eea8992042361b223f3a4 Mon Sep 17 00:00:00 2001
+From: Alberto Valverde Gonzalez <alberto@toscat.net>
+Date: Mon, 4 Jul 2016 18:45:19 +0000
+Subject: [PATCH 4/6] add option to enable template-haskell on a stage1
+ compiler
+
+---
+ compiler/ghc.mk | 3 +++
+ ghc.mk          | 8 ++++++++
+ 2 files changed, 11 insertions(+)
+
+diff --git a/compiler/ghc.mk b/compiler/ghc.mk
+index 0da5444..4c91247 100644
+--- a/compiler/ghc.mk
++++ b/compiler/ghc.mk
+@@ -335,6 +335,9 @@ compiler_stage2_CONFIGURE_OPTS += --flags=ncg
+ endif
+ 
+ ifeq "$(GhcWithInterpreter)" "YES"
++ifeq "$(Stage1TH)" "YES"
++compiler_stage1_CONFIGURE_OPTS += --flags=ghci
++endif
+ compiler_stage2_CONFIGURE_OPTS += --flags=ghci
+ 
+ ifeq "$(GhcEnableTablesNextToCode) $(GhcUnregisterised)" "YES NO"
+diff --git a/ghc.mk b/ghc.mk
+index ec9590a..70036d6 100644
+--- a/ghc.mk
++++ b/ghc.mk
+@@ -437,6 +437,14 @@ PACKAGES_STAGE0 += terminfo
+ endif
+ endif
+ 
++# Enable TH on cross-compilers.
++# NOTE: For this to work base must be available but I (albertov)
++# can't manage to build it on stage1 so GHC stage0 must be the
++# same version as the one we're building now
++ifeq "$(GhcWithInterpreter) $(Stage1TH)" "YES YES"
++PACKAGES_STAGE0 += ghci
++endif
++
+ PACKAGES_STAGE1 += ghc-prim
+ PACKAGES_STAGE1 += $(INTEGER_LIBRARY)
+ PACKAGES_STAGE1 += base
+-- 
+2.7.4
+

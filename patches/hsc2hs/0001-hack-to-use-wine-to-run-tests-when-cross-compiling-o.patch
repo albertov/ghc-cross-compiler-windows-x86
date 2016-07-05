@@ -1,0 +1,81 @@
+From 464f8f1a2a84a36840ba4728044f46786d430c04 Mon Sep 17 00:00:00 2001
+From: Alberto Valverde Gonzalez <alberto@toscat.net>
+Date: Mon, 4 Jul 2016 14:54:46 +0000
+Subject: [PATCH 1/2] hack to use wine to run tests when cross-compiling on
+ linux to windows
+
+---
+ DirectCodegen.hs | 32 +++++++++++++++++++++++++++-----
+ 1 file changed, 27 insertions(+), 5 deletions(-)
+
+diff --git a/DirectCodegen.hs b/DirectCodegen.hs
+index 37564ee..19022aa 100644
+--- a/DirectCodegen.hs
++++ b/DirectCodegen.hs
+@@ -10,7 +10,6 @@ import Data.Char                ( isAlphaNum, toUpper )
+ import Control.Monad            ( when, forM_ )
+ 
+ import System.Exit              ( ExitCode(..), exitWith )
+-import System.FilePath          ( normalise )
+ 
+ import C
+ import Common
+@@ -22,6 +21,7 @@ outputDirect :: Config -> FilePath -> FilePath -> FilePath -> String -> [Token]
+ outputDirect config outName outDir outBase name toks = do
+ 
+     let beVerbose    = cVerbose config
++        doCross      = cCrossCompile config
+         flags        = cFlags config
+         cProgName    = outDir++outBase++"_hsc_make.c"
+         oProgName    = outDir++outBase++"_hsc_make.o"
+@@ -35,9 +35,7 @@ outputDirect config outName outDir outBase name toks = do
+         outHName     = outDir++outHFile
+         outCName     = outDir++outBase++"_hsc.c"
+ 
+-    let execProgName
+-            | null outDir = normalise ("./" ++ progName)
+-            | otherwise   = progName
++    let execProgName = "./" ++ progName
+ 
+     let specials = [(pos, key, arg) | Special pos key arg <- toks]
+ 
+@@ -87,7 +85,8 @@ outputDirect config outName outDir outBase name toks = do
+         )
+       possiblyRemove oProgName $ do
+ 
+-        rawSystemWithStdOutL ("running " ++ execProgName) beVerbose execProgName [] outName
++        runTestProgram ("running " ++ execProgName) beVerbose doCross
++          execProgName [] outName
+         possiblyRemove progName $ do
+ 
+           when needsH $ writeBinaryFile outHName $
+@@ -107,3 +106,26 @@ outputDirect config outName outDir outBase name toks = do
+             concatMap outTokenC specials
+             -- NB. outHFile not outHName; works better when processed
+             -- by gcc or mkdependC.
++
++linuxBuild :: Bool
++linuxBuild =
++#if defined(linux_BUILD_OS)
++  True
++#else
++  False
++#endif
++
++windowsHost :: Bool
++windowsHost =
++#if defined(mingw32_HOST_OS) || defined(__CYGWIN32__)
++  True
++#else
++  False
++#endif
++
++
++runTestProgram msg verbose doCross execProgName args outName
++  | not doCross, linuxBuild, windowsHost =
++      rawSystemWithStdOutL msg verbose "wine" (execProgName:args) outName
++  | otherwise =
++    rawSystemWithStdOutL msg verbose execProgName args outName
+-- 
+2.7.4
+

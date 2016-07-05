@@ -1,0 +1,86 @@
+From 807f0c2150d4e18144271f0b43495710b750a4d5 Mon Sep 17 00:00:00 2001
+From: Alberto Valverde Gonzalez <alberto@toscat.net>
+Date: Mon, 4 Jul 2016 15:07:42 +0000
+Subject: [PATCH 1/6] enable mingw32 sections in makefiles when targeting
+ mingw32 from a linux host
+
+---
+ rts/ghc.mk | 15 ++++++++-------
+ 1 file changed, 8 insertions(+), 7 deletions(-)
+
+diff --git a/rts/ghc.mk b/rts/ghc.mk
+index e3b3c5f..541a632 100644
+--- a/rts/ghc.mk
++++ b/rts/ghc.mk
+@@ -34,12 +34,13 @@ rts_dist_WAYS = $(rts_WAYS)
+ ALL_RTS_LIBS = $(foreach way,$(rts_WAYS),rts/dist/build/libHSrts$($(way)_libsuf))
+ $(eval $(call all-target,rts,$(ALL_RTS_LIBS)))
+ 
++
+ # -----------------------------------------------------------------------------
+ # Defining the sources
+ 
+ ALL_DIRS = hooks sm eventlog
+ 
+-ifeq "$(HostOS_CPP)" "mingw32"
++ifneq ($(filter mingw32,$(HostOS_CPP) $(TargetOS_CPP)),)
+ ALL_DIRS += win32
+ else
+ ALL_DIRS += posix
+@@ -96,7 +97,7 @@ rts/dist/libs.depend : $$(ghc-pkg_INPLACE) | $$(dir $$@)/.
+ # 	These are made from rts/win32/libHS*.def which contain lists of
+ # 	all the symbols in those libraries used by the RTS.
+ #
+-ifeq "$(HostOS_CPP)" "mingw32" 
++ifneq ($(filter mingw32,$(HostOS_CPP) $(TargetOS_CPP)),)
+ 
+ ALL_RTS_DEF_LIBNAMES 	= base ghc-prim
+ ALL_RTS_DEF_LIBS	= \
+@@ -120,7 +121,7 @@ endif
+ 
+ ifneq "$(BINDIST)" "YES"
+ ifneq "$(UseSystemLibFFI)" "YES"
+-ifeq "$(HostOS_CPP)" "mingw32" 
++ifneq ($(filter mingw32,$(HostOS_CPP) $(TargetOS_CPP)),)
+ rts/dist/build/$(LIBFFI_DLL): libffi/build/inst/bin/$(LIBFFI_DLL)
+ 	cp $< $@
+ else
+@@ -151,7 +152,7 @@ rts_dist_$1_CC_OPTS += -fno-omit-frame-pointer -g -O0
+ endif
+ 
+ ifneq "$$(findstring dyn, $1)" ""
+-ifeq "$$(HostOS_CPP)" "mingw32" 
++ifneq ($(filter mingw32,$(HostOS_CPP) $(TargetOS_CPP)),)
+ rts_dist_$1_CC_OPTS += -DCOMPILING_WINDOWS_DLL
+ endif
+ rts_dist_$1_CC_OPTS += -DDYNAMIC
+@@ -192,7 +193,7 @@ rts_dist_$1_CC_OPTS += -DRtsWay=\"rts_$1\"
+ # If we're compiling on windows, enforce that we only support XP+
+ # Adding this here means it doesn't have to be done in individual .c files
+ # and also centralizes the versioning.
+-ifeq "$$(TargetOS_CPP)" "mingw32"
++ifneq ($(filter mingw32,$(HostOS_CPP) $(TargetOS_CPP)),)
+ rts_dist_$1_CC_OPTS += -DWINVER=$(rts_WINVER)
+ endif
+ 
+@@ -204,7 +205,7 @@ endif
+ 
+ # Making a shared library for the RTS.
+ ifneq "$$(findstring dyn, $1)" ""
+-ifeq "$$(HostOS_CPP)" "mingw32" 
++ifneq ($(filter mingw32,$(HostOS_CPP) $(TargetOS_CPP)),)
+ $$(rts_$1_LIB) : $$(rts_$1_OBJS) $$(ALL_RTS_DEF_LIBS) rts/dist/libs.depend rts/dist/build/$$(LIBFFI_DLL)
+ 	"$$(RM)" $$(RM_OPTS) $$@
+ 	"$$(rts_dist_HC)" -this-unit-id rts -shared -dynamic -dynload deploy \
+@@ -331,7 +332,7 @@ rts_CC_OPTS += -DBE_CONSERVATIVE
+ endif
+ 
+ # Set Windows version
+-ifeq "$$(TargetOS_CPP)" "mingw32"
++ifneq ($(filter mingw32,$(HostOS_CPP) $(TargetOS_CPP)),)
+ rts_CC_OPTS += -DWINVER=$(rts_WINVER)
+ endif
+ 
+-- 
+2.7.4
+
