@@ -1,0 +1,28 @@
+From cae12e84256518de2927fe4861d969866441e17d Mon Sep 17 00:00:00 2001
+From: Alberto Valverde <alberto@toscat.net>
+Date: Wed, 6 Jul 2016 19:41:55 +0200
+Subject: [PATCH 6/7] auto-setting of external interpreter when cross-compiling
+ breaks stage1 ghc
+
+---
+ compiler/main/DynFlags.hs | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/compiler/main/DynFlags.hs b/compiler/main/DynFlags.hs
+index 95a3227..0922702 100644
+--- a/compiler/main/DynFlags.hs
++++ b/compiler/main/DynFlags.hs
+@@ -3631,10 +3631,7 @@ defaultFlags settings
+ 
+     ++ concatMap (wayGeneralFlags platform) (defaultWays settings)
+ 
+-    ++ (if needsExternalInterpreter then [Opt_ExternalInterpreter] else [])
+-
+     where platform = sTargetPlatform settings
+-          needsExternalInterpreter = platformIsCrossCompiling platform
+ 
+ default_PIC :: Platform -> [GeneralFlag]
+ default_PIC platform =
+-- 
+2.7.4
+

@@ -1,7 +1,7 @@
 From 807f0c2150d4e18144271f0b43495710b750a4d5 Mon Sep 17 00:00:00 2001
 From: Alberto Valverde Gonzalez <alberto@toscat.net>
 Date: Mon, 4 Jul 2016 15:07:42 +0000
-Subject: [PATCH 1/6] enable mingw32 sections in makefiles when targeting
+Subject: [PATCH 1/7] enable mingw32 sections in makefiles when targeting
  mingw32 from a linux host
 
 ---

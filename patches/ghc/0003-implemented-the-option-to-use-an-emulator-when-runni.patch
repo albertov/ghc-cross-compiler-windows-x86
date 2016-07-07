@@ -1,7 +1,7 @@
 From ee4d21017120de96bbbd5aeb6a0b79ce3851c773 Mon Sep 17 00:00:00 2001
 From: Alberto Valverde <alberto@toscat.net>
 Date: Mon, 4 Jul 2016 20:24:48 +0200
-Subject: [PATCH 3/6] implemented the option to use an emulator when running
+Subject: [PATCH 3/7] implemented the option to use an emulator when running
  hsc2hs when cross-compiling
 
 ---

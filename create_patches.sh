@@ -10,6 +10,6 @@ if [ ! -d ${repo}/.git ]; then
 fi
 cd ${repo}
 mkdir -p ${patch_dir}/ghc ${patch_dir}/hsc2hs
-git format-patch -o${patch_dir}/ghc    ghc-8.0.1-release...cross-mingw-hacks
+git format-patch -o${patch_dir}/ghc    ghc-8.0.1-release...cross-external-interpreter
 cd utils/hsc2hs
 git format-patch -o${patch_dir}/hsc2hs 5119ae...cross-mingw-hacks

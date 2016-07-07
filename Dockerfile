@@ -29,6 +29,8 @@ RUN : "Add non-root user" \
 ENV GHC_VERSION=8.0.1 \
     STACK_RESOLVER=nightly-2016-07-01
 COPY wrappers/ /usr/src/mxe/usr/bin/
+# We bundle stack because hub.docker.com says it cannot resolve stackage.org
+COPY stack.xz /tmp/
 RUN : "Download and unpack i386-linux GHC from binary distribution" \
  && curl -L https://downloads.haskell.org/~ghc/${GHC_VERSION}/ghc-${GHC_VERSION}-i386-deb8-linux.tar.xz | tar xvJ \
  && cd /tmp/ghc-${GHC_VERSION} \
@@ -45,10 +47,12 @@ RUN : "Download and unpack i386-linux GHC from binary distribution" \
     ln -s ${bin} /usr/src/mxe/usr/bin/i386-unknown-linux-$(basename ${bin}); done \
 
  && : "Install i386-unknown-linux-stack" \
- && curl -L https://www.stackage.org/stack/linux-i386 \
-  | tar xz --wildcards --strip-components=1 \
-      -C /usr/src/mxe/usr/i386-unknown-linux/bin \
-      '*/stack' \
+ && xz -d /tmp/stack.xz \
+ && chmod +x /tmp/stack \
+ && mv /tmp/stack /usr/local/bin \ 
+# | tar xz --wildcards --strip-components=1 \
+#     -C /usr/src/mxe/usr/i386-unknown-linux/bin \
+#     '*/stack' \
  && : "Install i386-unknown-linux-cabal" \
  && chown root /home/xghc \
  && STACK_ROOT=/home/xghc/.stack i386-unknown-linux-stack \
@@ -77,7 +81,7 @@ RUN : "Prepare mingw32 cross-compiling env" \
          /usr/src/mxe/usr/${CROSS_TRIPLE}/include/Shlobj.h
 
 COPY patches/ /tmp/patches/
-COPY build.mk TestTH.hs /tmp/
+COPY build.mk  /tmp/
 RUN : "Download source to build cross-compiler" \
  && curl -L https://www.haskell.org/ghc/dist/${GHC_VERSION}/ghc-${GHC_VERSION}-src.tar.xz \
  | tar xvJ  \
@@ -96,9 +100,11 @@ RUN : "Download source to build cross-compiler" \
  && : "Build and install cross-compiler" \
  && make -j8 \
  && make install \
- && : "Test that we can cross-compile TemplateHaskell" \
- && cd /tmp \
- && ${HOST_TRIPLE}-ghc --make TestTH.hs \
+ && : "Clean up to keep the image small" && rm -rf /tmp/*
+
+COPY TestTH.hs  /tmp/
+RUN : "Test that we can cross-compile TemplateHaskell" \
+ && ${HOST_TRIPLE}-ghc --make TestTH.hs -fexternal-interpreter \
  && wine TestTH.exe \
  && : "Clean up to keep the image small" && rm -rf /tmp/*
 
