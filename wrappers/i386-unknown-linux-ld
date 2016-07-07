@@ -1,2 +1,2 @@
 #!/bin/sh
-exec ld -m32 "$@"
+exec ld -melf_i386 "$@"

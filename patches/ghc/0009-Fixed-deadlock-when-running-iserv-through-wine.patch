@@ -1,0 +1,94 @@
+From 0eddc76c3531bd01f318281b0a5931cba6a56bd3 Mon Sep 17 00:00:00 2001
+From: Alberto Valverde <alberto@toscat.net>
+Date: Thu, 7 Jul 2016 14:57:21 +0200
+Subject: [PATCH 9/9] Fixed deadlock when running iserv through wine
+
+For some reason ghc hangs when using the external interpreter through
+wine and stderr and/or stdout are redirected to files. Preventing these
+to be inheritted but redirected to temp files side-steps it.
+---
+ compiler/ghci/GHCi.hs | 22 ++++++++++++++++------
+ iserv/src/Main.hs     |  8 +++-----
+ 2 files changed, 19 insertions(+), 11 deletions(-)
+
+diff --git a/compiler/ghci/GHCi.hs b/compiler/ghci/GHCi.hs
+index d46cf4f..fd3c2c0 100644
+--- a/compiler/ghci/GHCi.hs
++++ b/compiler/ghci/GHCi.hs
+@@ -77,8 +77,7 @@ import System.Exit
+ import System.IO
+ import Data.Maybe
+ import GHC.IO.Handle.Types (Handle)
+-import GHC.IO.Handle.FD (mkHandleFromFD)
+-import GHC.IO.FD as FD
++import GHC.IO.Handle.FD (openFileBlocking)
+ #ifdef mingw32_HOST_OS
+ import Foreign.C
+ #else
+@@ -485,21 +484,32 @@ runWithPipes dflags prog opts = do
+     debugTraceMsg dflags 3 startMsg
+     rPath <- newTempName dflags "rfifo"
+     wPath <- newTempName dflags "wfifo"
+-    addFilesToClean dflags [wPath, rPath]
++    -- FIXME: add a flag to enable saving these next two files somewhere for debugging
++    stdoutPath <- newTempName dflags "stdout"
++    stderrPath <- newTempName dflags "stderr"
+ 
+     createNamedPipe' rPath
+     createNamedPipe' wPath
++    addFilesToClean dflags [wPath, rPath, stdoutPath, stderrPath]
+ 
+     let (prog', args) = case mEmulator of 
+                           Just emu -> (emu,  prog : rPath : wPath : opts)
+                           Nothing  -> (prog,        rPath : wPath : opts)
++    stdoutH <- openFile stdoutPath WriteMode
++    stderrH <- openFile stderrPath WriteMode
+     (_, _, _, ph) <- createProcess (proc prog' args)
++      -- We prevent these descriptors to be inheritted because it causes a deadlock for
++      -- some reason when stderr or stdout are redirected to files when iserv runs
++      -- through wine
++      { std_in  = NoStream
++      , std_out = UseHandle stdoutH
++      , std_err = UseHandle stderrH
++      }
+     -- The order in which we open the pipes must be the same at the other end or
+     -- we'll deadlock
+-    (wFd,wDt) <- FD.openFile wPath WriteMode False -- open in blocking mode
+-    wh <- mkHandleFromFD wFd wDt wPath WriteMode True Nothing
+-    -- set to non-blocking afterwards -----------^
++    wh <- openFileBlocking wPath WriteMode
+     hSetBuffering wh NoBuffering
++    hSetBinaryMode wh True
+ 
+     rh <- openBinaryFile rPath ReadMode
+     hSetBuffering rh NoBuffering
+diff --git a/iserv/src/Main.hs b/iserv/src/Main.hs
+index b0d3840..96d1458 100644
+--- a/iserv/src/Main.hs
++++ b/iserv/src/Main.hs
+@@ -5,8 +5,7 @@ import GHCi.Run
+ import GHCi.TH
+ import GHCi.Message
+ import GHCi.Signals
+-import GHC.IO.Handle.FD (mkHandleFromFD)
+-import GHC.IO.FD as FD
++import GHC.IO.Handle.FD (openFileBlocking)
+ 
+ import Control.DeepSeq
+ import Control.Exception
+@@ -44,10 +43,9 @@ main = do
+   inh <- openBinaryFile rFifo ReadMode
+   hSetBuffering inh NoBuffering
+ 
+-  (oFd,oDt) <- FD.openFile wFifo WriteMode False -- open in blocking mode
+-  outh <- mkHandleFromFD oFd oDt wFifo WriteMode True Nothing
+-  -- set to non-blocking afterwards -------------^
++  outh <- openFileBlocking wFifo WriteMode
+   hSetBuffering outh NoBuffering
++  hSetBinaryMode outh True
+ 
+   lo_ref <- newIORef Nothing
+   let pipe = Pipe{pipeRead = inh, pipeWrite = outh, pipeLeftovers = lo_ref}
+-- 
+2.7.4
+

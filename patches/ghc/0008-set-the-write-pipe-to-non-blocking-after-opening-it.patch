@@ -1,0 +1,73 @@
+From 9e33f1c6947054128dabea9afc187b3d834d557d Mon Sep 17 00:00:00 2001
+From: Alberto Valverde <alberto@toscat.net>
+Date: Thu, 7 Jul 2016 03:04:10 +0200
+Subject: [PATCH 8/9] set the write pipe to non-blocking after opening it
+
+---
+ compiler/ghci/GHCi.hs | 12 ++++++++----
+ iserv/src/Main.hs     |  9 ++++++---
+ 2 files changed, 14 insertions(+), 7 deletions(-)
+
+diff --git a/compiler/ghci/GHCi.hs b/compiler/ghci/GHCi.hs
+index d2dcaf1..d46cf4f 100644
+--- a/compiler/ghci/GHCi.hs
++++ b/compiler/ghci/GHCi.hs
+@@ -77,7 +77,8 @@ import System.Exit
+ import System.IO
+ import Data.Maybe
+ import GHC.IO.Handle.Types (Handle)
+-import GHC.IO.Handle.FD (openFileBlocking)
++import GHC.IO.Handle.FD (mkHandleFromFD)
++import GHC.IO.FD as FD
+ #ifdef mingw32_HOST_OS
+ import Foreign.C
+ #else
+@@ -495,11 +496,14 @@ runWithPipes dflags prog opts = do
+     (_, _, _, ph) <- createProcess (proc prog' args)
+     -- The order in which we open the pipes must be the same at the other end or
+     -- we'll deadlock
+-    wh <- openFileBlocking wPath WriteMode
+-    rh <- openBinaryFile rPath ReadMode
+-    hSetBinaryMode wh True
++    (wFd,wDt) <- FD.openFile wPath WriteMode False -- open in blocking mode
++    wh <- mkHandleFromFD wFd wDt wPath WriteMode True Nothing
++    -- set to non-blocking afterwards -----------^
+     hSetBuffering wh NoBuffering
++
++    rh <- openBinaryFile rPath ReadMode
+     hSetBuffering rh NoBuffering
++
+     return (ph, rh, wh)
+  where
+   emulated = platformIsCrossCompiling . sTargetPlatform . settings $ dflags
+diff --git a/iserv/src/Main.hs b/iserv/src/Main.hs
+index 16a8a1f..b0d3840 100644
+--- a/iserv/src/Main.hs
++++ b/iserv/src/Main.hs
+@@ -5,7 +5,8 @@ import GHCi.Run
+ import GHCi.TH
+ import GHCi.Message
+ import GHCi.Signals
+-import GHC.IO.Handle.FD (openFileBlocking)
++import GHC.IO.Handle.FD (mkHandleFromFD)
++import GHC.IO.FD as FD
+ 
+ import Control.DeepSeq
+ import Control.Exception
+@@ -41,9 +42,11 @@ main = do
+   -- The order in which we open the pipes must be the same at the other end or
+   -- we'll deadlock
+   inh <- openBinaryFile rFifo ReadMode
+-  outh <- openFileBlocking wFifo WriteMode
+-  hSetBinaryMode outh True
+   hSetBuffering inh NoBuffering
++
++  (oFd,oDt) <- FD.openFile wFifo WriteMode False -- open in blocking mode
++  outh <- mkHandleFromFD oFd oDt wFifo WriteMode True Nothing
++  -- set to non-blocking afterwards -------------^
+   hSetBuffering outh NoBuffering
+ 
+   lo_ref <- newIORef Nothing
+-- 
+2.7.4
+

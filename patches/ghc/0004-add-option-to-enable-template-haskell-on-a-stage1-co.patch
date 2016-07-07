@@ -1,7 +1,7 @@
 From 51f58bcc6f76d61a5f4eea8992042361b223f3a4 Mon Sep 17 00:00:00 2001
 From: Alberto Valverde Gonzalez <alberto@toscat.net>
 Date: Mon, 4 Jul 2016 18:45:19 +0000
-Subject: [PATCH 4/7] add option to enable template-haskell on a stage1
+Subject: [PATCH 4/9] add option to enable template-haskell on a stage1
  compiler
 
 ---

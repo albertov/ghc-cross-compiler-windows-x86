@@ -1,7 +1,7 @@
 From bc899e703f7725ba5d7b20957cb7925ad8bd6c15 Mon Sep 17 00:00:00 2001
 From: Alberto Valverde <alberto@toscat.net>
 Date: Mon, 4 Jul 2016 20:23:09 +0200
-Subject: [PATCH 2/7] fixed detection of ddlwrap and windres commands and of
+Subject: [PATCH 2/9] fixed detection of ddlwrap and windres commands and of
  leading underscore in symbol names when cross-compiling
 
 ---
