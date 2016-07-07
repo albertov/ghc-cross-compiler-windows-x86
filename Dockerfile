@@ -102,13 +102,13 @@ RUN : "Download source to build cross-compiler" \
  && make install \
  && : "Clean up to keep the image small" && rm -rf /tmp/*
 
+USER xghc
+
 COPY TestTH.hs  /tmp/
 RUN : "Test that we can cross-compile TemplateHaskell" \
- && ${HOST_TRIPLE}-ghc --make TestTH.hs -fexternal-interpreter \
- && wine TestTH.exe \
- && : "Clean up to keep the image small" && rm -rf /tmp/*
+ && ${HOST_TRIPLE}-ghc --make TestTH.hs -fexternal-interpreter  \
+ && wine TestTH.exe
 
-USER xghc
 ENV PATH /home/xghc/.local/bin:${PATH}
 WORKDIR /home/xghc
 
