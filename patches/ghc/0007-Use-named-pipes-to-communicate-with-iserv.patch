@@ -1,7 +1,7 @@
 From 31134d0d290a90fb028409db4190d874724a27c7 Mon Sep 17 00:00:00 2001
 From: Alberto Valverde <alberto@toscat.net>
 Date: Thu, 7 Jul 2016 01:34:14 +0200
-Subject: [PATCH 7/9] Use named pipes to communicate with iserv.
+Subject: [PATCH 07/10] Use named pipes to communicate with iserv.
 
 This makes it easier to call it through an emulator to cross-compile TH
 ---

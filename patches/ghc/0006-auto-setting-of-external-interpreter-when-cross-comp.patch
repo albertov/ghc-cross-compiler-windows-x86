@@ -1,8 +1,8 @@
 From cae12e84256518de2927fe4861d969866441e17d Mon Sep 17 00:00:00 2001
 From: Alberto Valverde <alberto@toscat.net>
 Date: Wed, 6 Jul 2016 19:41:55 +0200
-Subject: [PATCH 6/9] auto-setting of external interpreter when cross-compiling
- breaks stage1 ghc
+Subject: [PATCH 06/10] auto-setting of external interpreter when
+ cross-compiling breaks stage1 ghc
 
 ---
  compiler/main/DynFlags.hs | 3 ---

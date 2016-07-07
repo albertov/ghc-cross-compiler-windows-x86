@@ -1,0 +1,28 @@
+From 7243a855e86db47d2a28291c9f14b6fe8863a3cd Mon Sep 17 00:00:00 2001
+From: Alberto Valverde <alberto@toscat.net>
+Date: Thu, 7 Jul 2016 22:05:27 +0200
+Subject: [PATCH 10/10] install compiler package when Stage1Only=YES too for
+ apps that use the ghc api
+
+---
+ ghc.mk | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/ghc.mk b/ghc.mk
+index 70036d6..007eb35 100644
+--- a/ghc.mk
++++ b/ghc.mk
+@@ -510,10 +510,7 @@ endif
+ 
+ # We install all packages that we build.
+ INSTALL_PACKAGES := $(addprefix libraries/,$(PACKAGES_STAGE1))
+-# See Note [Stage1Only vs stage=1] in mk/config.mk.in.
+-ifneq "$(Stage1Only)" "YES"
+ INSTALL_PACKAGES += compiler
+-endif
+ INSTALL_PACKAGES += $(addprefix libraries/,$(PACKAGES_STAGE2))
+ 
+ endif # CLEANING
+-- 
+2.7.4
+

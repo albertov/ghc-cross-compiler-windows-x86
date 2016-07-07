@@ -4,8 +4,10 @@ export COMMON=
 export COMPILE="--with-ghc=${HOST_TRIPLE}-ghc
                 --with-ghc-pkg=${HOST_TRIPLE}-ghc-pkg
                 --with-gcc=${HOST_TRIPLE}-gcc
-                --with-ld=${HOST_TRIPLE}-ld
-                --with-as=${HOST_TRIPLE}-as
+                --with-hsc2hs=/usr/src/mxe/usr/i386-unknown-linux/bin/hsc2hs
+                --hsc2hs-options=--emulator=$(which wine)
+                --hsc2hs-options=--template=/usr/src/mxe/usr/lib/${HOST_TRIPLE}-ghc-${GHC_VERSION}/template-hsc.h
+                --with-ld=${HOST_TRIPLE}-ld"
 export CONFIG="--configure-option=--host=${HOST_TRIPLE} --disable-shared"
 case $1 in
     configure|install) OPTIONS="$COMMON $COMPILE $CONFIG" ;;

@@ -1,7 +1,7 @@
 From 9e33f1c6947054128dabea9afc187b3d834d557d Mon Sep 17 00:00:00 2001
 From: Alberto Valverde <alberto@toscat.net>
 Date: Thu, 7 Jul 2016 03:04:10 +0200
-Subject: [PATCH 8/9] set the write pipe to non-blocking after opening it
+Subject: [PATCH 08/10] set the write pipe to non-blocking after opening it
 
 ---
  compiler/ghci/GHCi.hs | 12 ++++++++----

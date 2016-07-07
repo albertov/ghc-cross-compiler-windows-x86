@@ -100,13 +100,17 @@ RUN : "Download source to build cross-compiler" \
  && : "Build and install cross-compiler" \
  && make -j8 \
  && make install \
+ && : "Copy native hsc2hs to bin dir" \
+ && mv utils/hsc2hs/dist/build/tmp/hsc2hs \
+       /usr/src/mxe/usr/i386-unknown-linux/bin \
+ && sed -i 's,-B"$topdir",\0 -fexternal-interpreter,g' /usr/src/mxe/usr/bin/${HOST_TRIPLE}-ghc \
  && : "Clean up to keep the image small" && rm -rf /tmp/*
 
 USER xghc
 
 COPY TestTH.hs  /tmp/
 RUN : "Test that we can cross-compile TemplateHaskell" \
- && ${HOST_TRIPLE}-ghc --make TestTH.hs -fexternal-interpreter  \
+ && ${HOST_TRIPLE}-ghc --make TestTH.hs \
  && wine TestTH.exe
 
 ENV PATH /home/xghc/.local/bin:${PATH}
